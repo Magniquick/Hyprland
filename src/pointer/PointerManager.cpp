@@ -621,6 +621,14 @@ SP<Aquamarine::IBuffer> CPointerManager::renderHWCursorBuffer(SP<CPointerManager
 
     RBO->bind();
 
+    // The hardware cursor plane is blended by the display engine after the compositor has
+    // already encoded the framebuffer into the output's colour space. Rendering the cursor
+    // as raw sRGB means those values get reinterpreted in the output space - on a PQ output
+    // a white cursor lands near peak luminance and is blinding. Tag the cursor FB with the
+    // monitor's image description so the texture pass converts into the output space.
+    if (RBO->getFB())
+        RBO->getFB()->setImageDescription(state->monitor->m_imageDescription);
+
     CRegion damageRegion = {0, 0, INT_MAX, INT_MAX};
     g_pHyprRenderer->beginFullFakeRender(state->monitor.lock(), damageRegion, RBO->getFB());
     g_pHyprRenderer->m_renderData.fbSize = RBO->getFB()->m_size;
