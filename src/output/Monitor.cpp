@@ -652,6 +652,10 @@ void CMonitor::applyCMType(NCMType::eCMType cmType, NTransferFunction::eTF cmSdr
         if (PROTO::colorManagement)
             PROTO::colorManagement->onMonitorImageDescriptionChanged(m_self);
         m_blurFBDirty = true;
+        // The output's colour transform changed, so everything already composited is stale.
+        // Without a full damage those pixels survive until something else happens to damage
+        // them, which is most visible on transparent surfaces after leaving HDR.
+        g_pHyprRenderer->damageMonitor(m_self.lock());
     }
 }
 
