@@ -1312,8 +1312,19 @@ void CMonitor::setMirror(const std::string& mirrorOf) {
     Event::bus()->m_events.monitor.layoutChanged.emit();
 }
 
+// Some vendors encode the aspect ratio in the physical size field. Same list as mutter and sway.
+static bool physSizeIsAspectRatio(const Vector2D& size) {
+    return size == Vector2D{1600, 900} || size == Vector2D{1600, 1000} || size == Vector2D{160, 90} || size == Vector2D{160, 100} || size == Vector2D{16, 9} ||
+        size == Vector2D{16, 10};
+}
+
 float CMonitor::getDefaultScale() {
     if (!m_output)
+        return 1;
+
+    // EDID defines a zero physical size as undefined, which projectors and virtual outputs report,
+    // and some vendors write the aspect ratio into the field instead of the size.
+    if (m_output->physicalSize.x <= 0 || m_output->physicalSize.y <= 0 || physSizeIsAspectRatio(m_output->physicalSize))
         return 1;
 
     static constexpr double MMPERINCH = 25.4;
