@@ -606,7 +606,13 @@ void CMonitor::applyCMType(NCMType::eCMType cmType, NTransferFunction::eTF cmSdr
             break;
         default: UNREACHABLE();
     }
-    if ((minLuminance() >= 0 || maxLuminance() > 0) && hdrPreset)
+    // wp_color_management_v1 requires content to be anchored: a signal level of reference_lum in one
+    // image description must produce the same output level as reference_lum in another. SDR sources are
+    // composited at sdr_max_luminance, via getTFMaxLuminance(sdrMaxLuminance), so that is where SDR white
+    // actually lands, and it is what color managed clients have to be told. The HDR presets sent a
+    // hardcoded HDR_REF_LUMINANCE instead, so color managed clients encoded SDR white for a different
+    // level than clients without color management were rendered at, and looked wrong next to them.
+    if (hdrPreset)
         m_imageDescription = m_imageDescription->with({
             .min       = minLuminance() >= 0 ? minLuminance() : m_imageDescription->value().luminances.min, //
             .max       = maxLuminance() > 0 ? maxLuminance() : m_imageDescription->value().luminances.max,  //
@@ -2420,6 +2426,31 @@ NColorManagement::SImageDescription::SPCMasteringLuminances CMonitor::getMasteri
         .min = m_minLuminance >= 0 ? m_minLuminance : (m_output->parsedEDID.hdrMetadata.has_value() ? m_output->parsedEDID.hdrMetadata->desiredContentMinLuminance : 0),
         .max = m_maxLuminance >= 0 ? m_maxLuminance : (m_output->parsedEDID.hdrMetadata.has_value() ? m_output->parsedEDID.hdrMetadata->desiredContentMaxLuminance : 0),
     };
+}
+
+NColorManagement::PImageDescription CMonitor::autoHDRImageDescription() {
+    static const auto PAUTOHDR           = CConfigValue<Config::INTEGER>("render:cm_auto_hdr");
+    const auto        masteringPrimaries = getMasteringPrimaries();
+
+    // Must match what auto HDR will actually apply, or a client encodes against one description and
+    // then gets switched to another. handleFullscreenSettings picks CM_HDR_EDID when cm_auto_hdr is 2
+    // and CM_HDR otherwise, and the two differ in primaries: EDID native versus named BT2020. Under
+    // direct scanout there is no CTM to absorb the difference, so getting it wrong desaturates.
+    const bool edidPrimaries = *PAUTOHDR == 2 && m_output->parsedEDID.chromaticityCoords.has_value();
+
+    return CImageDescription::from({
+        .transferFunction    = NColorManagement::CM_TRANSFER_FUNCTION_ST2084_PQ,
+        .primariesNameSet    = !edidPrimaries,
+        .primariesNamed      = NColorManagement::CM_PRIMARIES_BT2020,
+        .primaries           = edidPrimaries ? masteringPrimaries : NColorManagement::getPrimaries(NColorManagement::CM_PRIMARIES_BT2020),
+        .masteringPrimaries  = masteringPrimaries,
+        .luminances          = {.min       = minLuminance() >= 0 ? minLuminance() : DEFAULT_HDR_IMAGE_DESCRIPTION->value().getTFMinLuminance(),
+                                .max       = maxLuminance() > 0 ? sc<uint32_t>(maxLuminance()) : sc<uint32_t>(DEFAULT_HDR_IMAGE_DESCRIPTION->value().getTFMaxLuminance()),
+                                .reference = sc<uint32_t>(DEFAULT_HDR_IMAGE_DESCRIPTION->value().getTFRefLuminance())},
+        .masteringLuminances = getMasteringLuminances(),
+        .maxCLL              = maxCLL(),
+        .maxFALL             = maxFALL(),
+    });
 }
 
 uint32_t CMonitor::getPreferredReadFormat() {

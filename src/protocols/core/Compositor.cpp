@@ -15,6 +15,7 @@
 #include "../../render/Renderer.hpp"
 #include "config/ConfigValue.hpp"
 #include "../../managers/eventLoop/EventLoopManager.hpp"
+#include "../../managers/fullscreen/FullscreenController.hpp"
 #include "../../state/MonitorState.hpp"
 #include "protocols/types/SurfaceRole.hpp"
 #include "render/Texture.hpp"
@@ -719,6 +720,16 @@ PImageDescription CWLSurfaceResource::getPreferredImageDescription() {
         monitor = parent->m_enteredOutputs[0];
     else if (m_hlSurface.valid() && WINDOW)
         monitor = WINDOW->m_monitor;
+
+    // Auto HDR needs a client to volunteer HDR content before it can switch the output, but a client
+    // will only do that if it believes HDR is available. Rather than have the output claim headroom it
+    // is not rendering, offer the HDR description this output would use to the fullscreen surface only.
+    // If the client takes it up, handleFullscreenSettings sees an HDR surface and switches for real;
+    // everything else keeps an honest SDR description.
+    static const auto PAUTOHDR      = CConfigValue<Config::INTEGER>("render:cm_auto_hdr");
+    const auto        PARENT_WINDOW = parent->m_hlSurface ? Desktop::View::CWindow::fromView(parent->m_hlSurface->view()) : nullptr;
+    if (*PAUTOHDR && monitor && PARENT_WINDOW && monitor->supportsHDR() && Fullscreen::controller()->getFullscreenWindow(monitor.lock()) == PARENT_WINDOW)
+        return monitor->autoHDRImageDescription();
 
     return monitor ? monitor->m_imageDescription : g_pCompositor->getPreferredImageDescription();
 }

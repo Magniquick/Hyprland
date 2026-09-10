@@ -321,18 +321,23 @@ namespace Monitor {
         bool applyMonitorRuleSoft(Config::CMonitorRule&& pMonitorRule);
 
         //
-        const Mat3x3&                                               getTransformMatrix();
-        const Mat3x3&                                               getScaleMatrix();
+        const Mat3x3& getTransformMatrix();
+        const Mat3x3& getScaleMatrix();
 
-        void                                                        debugLastPresentation(const std::string& message);
+        void          debugLastPresentation(const std::string& message);
 
-        bool                                                        supportsWideColor();
-        bool                                                        supportsHDR();
-        float                                                       minLuminance(float defaultValue = 0);
-        int                                                         maxLuminance(int defaultValue = 80);
-        int                                                         maxAvgLuminance(int defaultValue = 80);
-        float                                                       maxFALL();
-        float                                                       maxCLL();
+        bool          supportsWideColor();
+        bool          supportsHDR();
+        float         minLuminance(float defaultValue = 0);
+        int           maxLuminance(int defaultValue = 80);
+        int           maxAvgLuminance(int defaultValue = 80);
+        float         maxFALL();
+        float         maxCLL();
+
+        // The description this output would present if auto HDR switched it to HDR now. Offered as the
+        // preferred description to a fullscreen surface so a client can opt into HDR without the output
+        // having to claim headroom it is not currently rendering.
+        NColorManagement::PImageDescription                         autoHDRImageDescription();
 
         bool                                                        wantsWideColor();
         bool                                                        wantsHDR();

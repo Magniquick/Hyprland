@@ -194,9 +194,12 @@ class CColorManagementProtocol : public IWaylandProtocol {
     virtual void bindManager(wl_client* client, void* data, uint32_t ver, uint32_t id);
 
     void         onImagePreferredChanged(uint32_t preferredId);
-    void         onMonitorImageDescriptionChanged(PHLMONITORREF monitor);
+    // Re-evaluate every surface's preferred description without claiming any output description
+    // changed. Used when only the per-surface answer can differ, e.g. across a fullscreen switch.
+    void recheckFeedbacks();
+    void onMonitorImageDescriptionChanged(PHLMONITORREF monitor);
 
-    bool         isClientCMAware(wl_client* client);
+    bool isClientCMAware(wl_client* client);
 
   private:
     void                                               destroyResource(CColorManager* resource);

@@ -2543,6 +2543,13 @@ void IHyprRenderer::handleFullscreenSettings(PHLMONITOR pMonitor) {
         pMonitor->m_output->state->setCTM(pMonitor->m_ctm);
     }
 
+    // getPreferredImageDescription() offers a fullscreen surface the HDR description this output would
+    // use, but nothing delivers that on its own: onPreferredChanged() only runs on output enter/leave
+    // and from onMonitorImageDescriptionChanged. Recheck when the fullscreen window changes, after the
+    // HDR block above so the offer is evaluated against the description this frame settled on.
+    if (*PAUTOHDR && PROTO::colorManagement && pMonitor->supportsHDR() && FULLSCREEN_WINDOW != pMonitor->m_previousFSWindow)
+        PROTO::colorManagement->recheckFeedbacks();
+
     pMonitor->m_previousFSWindow = FULLSCREEN_WINDOW;
 }
 

@@ -457,6 +457,11 @@ CColorManagementFeedbackSurface::CColorManagementFeedbackSurface(SP<CWpColorMana
 }
 
 void CColorManagementFeedbackSurface::onPreferredChanged() {
+    // A client may destroy its wl_surface while keeping the feedback object alive; the get_preferred
+    // handlers guard for that and this must too, or the deref below is on an expired WP.
+    if (m_surface.expired())
+        return;
+
     if (m_surface->m_enteredOutputs.size() == 1) {
         const auto newId = m_surface->getPreferredImageDescription()->id();
         if (m_currentPreferredId != newId) {
@@ -892,14 +897,17 @@ void CColorManagementProtocol::onImagePreferredChanged(uint32_t preferredId) {
     }
 }
 
+void CColorManagementProtocol::recheckFeedbacks() {
+    for (auto const& feedback : m_feedbackSurfaces)
+        feedback->onPreferredChanged();
+}
+
 void CColorManagementProtocol::onMonitorImageDescriptionChanged(PHLMONITORREF monitor) {
     for (auto const& output : m_outputs) {
         if (output->m_output && output->m_output->m_monitor == monitor)
             output->m_resource->sendImageDescriptionChanged();
     }
-    // recheck feedbacks
-    for (auto const& feedback : m_feedbackSurfaces)
-        feedback->onPreferredChanged();
+    recheckFeedbacks();
 }
 
 bool CColorManagementProtocol::isClientCMAware(wl_client* client) {
