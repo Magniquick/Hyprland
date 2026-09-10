@@ -166,3 +166,13 @@ TEST_CASE(monitorBackgroundWorkspaceAndXpMode) {
         }
     }
 }
+
+TEST_CASE(monitorAutoScaleIgnoresMissingPhysicalSize) {
+    // headless outputs report a 0x0 physical size, which used to come out as infinite PPI and scale 2
+    removeMirrorTestOutputs();
+    CScopeGuard cleanup([] { removeMirrorTestOutputs(); });
+    OK(getFromSocket(std::format("/eval hl.monitor({{ output = '{}', mode = '1920x1080@60', position = 'auto-right', scale = 'auto' }})", TEST_MIRROR_SOURCE)));
+    OK(getFromSocket(std::format("/output create headless {}", TEST_MIRROR_SOURCE)));
+    ASSERT(waitForMonitor(TEST_MIRROR_SOURCE, true), true);
+    EXPECT_CONTAINS(monitorBlock(TEST_MIRROR_SOURCE), "\tscale: 1\n");
+}
