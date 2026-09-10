@@ -507,14 +507,18 @@ static NColorManagement::eTransferFunction chooseTF(NTransferFunction::eTF tf) {
 }
 
 void CMonitor::applyCMType(NCMType::eCMType cmType, NTransferFunction::eTF cmSdrEotf) {
+    // EDID HDR metadata next to the 80 nit sRGB luminances makes color managed clients compute HDR headroom on an
+    // SDR output and encode white below full scale (Chromium: 187/255), while clients without color management keep
+    // writing 255. Only attach it for HDR presets, as wlroots, KWin and Weston do.
+    const bool                                                        hdrPreset           = cmType == NCMType::CM_HDR || cmType == NCMType::CM_HDR_EDID;
     auto                                                              oldImageDescription = m_imageDescription;
     const auto                                                        chosenSdrEotf       = chooseTF(cmSdrEotf);
 
     const auto                                                        masteringPrimaries  = getMasteringPrimaries();
-    const NColorManagement::SImageDescription::SPCMasteringLuminances masteringLuminances = getMasteringLuminances();
+    const NColorManagement::SImageDescription::SPCMasteringLuminances masteringLuminances = hdrPreset ? getMasteringLuminances() : SImageDescription::SPCMasteringLuminances{};
 
-    const auto                                                        maxFALL = this->maxFALL();
-    const auto                                                        maxCLL  = this->maxCLL();
+    const auto                                                        maxFALL = hdrPreset ? this->maxFALL() : 0;
+    const auto                                                        maxCLL  = hdrPreset ? this->maxCLL() : 0;
 
     switch (cmType) {
         case NCMType::CM_SRGB:
@@ -602,7 +606,7 @@ void CMonitor::applyCMType(NCMType::eCMType cmType, NTransferFunction::eTF cmSdr
             break;
         default: UNREACHABLE();
     }
-    if ((minLuminance() >= 0 || maxLuminance() > 0) && (cmType == NCMType::CM_HDR || cmType == NCMType::CM_HDR_EDID))
+    if ((minLuminance() >= 0 || maxLuminance() > 0) && hdrPreset)
         m_imageDescription = m_imageDescription->with({
             .min       = minLuminance() >= 0 ? minLuminance() : m_imageDescription->value().luminances.min, //
             .max       = maxLuminance() > 0 ? maxLuminance() : m_imageDescription->value().luminances.max,  //
