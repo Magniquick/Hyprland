@@ -368,7 +368,18 @@ void CPopup::onReposition() {
 
     invalidateTreeExtentsCache();
 
+    // the new position takes effect before the client commits a buffer for it, so damage the popup
+    // tree where it was and where it is now
+    g_pHyprRenderer->damageBox(popupTreeExtents().copy().translate(t1ParentCoords()));
     reposition();
+    m_lastPos = coordsRelativeToParent();
+    invalidateTreeExtentsCache();
+    g_pHyprRenderer->damageBox(popupTreeExtents().copy().translate(t1ParentCoords()));
+
+    if (!m_layerOwner.expired() && m_layerOwner->m_layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP) {
+        if (m_layerOwner->m_monitor)
+            m_layerOwner->m_monitor->m_blurFBDirty = true;
+    }
 }
 
 void CPopup::reposition() {
