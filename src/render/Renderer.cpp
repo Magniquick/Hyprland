@@ -3000,9 +3000,7 @@ void IHyprRenderer::damageSurface(SP<CWLSurfaceResource> pSurface, double x, dou
     if (scale != 1.0)
         damageBox.scale(scale);
 
-    damageBox.translate({x, y});
-
-    const auto EXTENTS = damageBox.getExtents();
+    const auto EXTENTS = damageBox.getExtents().translate({x, y});
 
     CRegion    damageBoxForEach;
 
@@ -3012,8 +3010,14 @@ void IHyprRenderer::damageSurface(SP<CWLSurfaceResource> pSurface, double x, dou
         if (!EXTENTS.overlaps(m->logicalBox()))
             continue;
 
-        damageBoxForEach.set(damageBox);
-        damageBoxForEach.translate({-m->m_position.x, -m->m_position.y}).scale(m->m_scale);
+        // pixman regions are integer, so map each rect to monitor pixels in doubles and round outward
+        const auto OFFSET = Vector2D{x, y} - m->m_position;
+        damageBoxForEach.clear();
+        for (auto const& r : damageBox.getRects()) {
+            const auto TL = (Vector2D{sc<double>(r.x1), sc<double>(r.y1)} + OFFSET) * m->m_scale;
+            const auto BR = (Vector2D{sc<double>(r.x2), sc<double>(r.y2)} + OFFSET) * m->m_scale;
+            damageBoxForEach.add(std::floor(TL.x), std::floor(TL.y), std::ceil(BR.x) - std::floor(TL.x), std::ceil(BR.y) - std::floor(TL.y));
+        }
 
         m->addDamage(damageBoxForEach);
     }
@@ -3021,8 +3025,7 @@ void IHyprRenderer::damageSurface(SP<CWLSurfaceResource> pSurface, double x, dou
     static auto PLOGDAMAGE = CConfigValue<Config::INTEGER>("debug:log_damage");
 
     if (*PLOGDAMAGE)
-        LOG(Log::DEBUG, "Damage: Surface (extents): xy: {}, {} wh: {}, {}", damageBox.pixman()->extents.x1, damageBox.pixman()->extents.y1,
-            damageBox.pixman()->extents.x2 - damageBox.pixman()->extents.x1, damageBox.pixman()->extents.y2 - damageBox.pixman()->extents.y1);
+        LOG(Log::DEBUG, "Damage: Surface (extents): xy: {}, {} wh: {}, {}", EXTENTS.x, EXTENTS.y, EXTENTS.width, EXTENTS.height);
 }
 
 void IHyprRenderer::damageWindow(PHLWINDOW pWindow, bool forceFull) {
